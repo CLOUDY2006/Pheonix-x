@@ -1,0 +1,20 @@
+{
+  "name": "phoenix-x",
+  "version": "1.0.0",
+  "description": "PROJECT PHOENIX X \u2014 autonomous multi-agent SOC: Detect. Investigate. Contain. Recover.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "start:prod": "node --disable-warning=ExperimentalWarning server/index.js",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js",
+    "admin": "node --disable-warning=ExperimentalWarning scripts/admin.js",
+    "test": "node --test --disable-warning=ExperimentalWarning tests/phoenix.test.js tests/persistence.test.js tests/api.test.js tests/connectors.test.js tests/production.test.js tests/platforms.test.js tests/autonomy.test.js tests/collectors.test.js tests/assistant.test.js tests/chatops.test.js tests/resilience.test.js tests/channels.test.js",
+    "ui:install": "npm --prefix frontend install",
+    "ui:build": "npm --prefix frontend run build",
+    "ui:dev": "npm --prefix frontend run dev"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,80 @@
+openapi: 3.0.3
+info: { title: PHOENIX X API, version: "2.0.0", description: "Autonomous SOC. See docs/API.md for conventions (cookie+CSRF, bearer, x-api-key)." }
+servers: [{ url: http://localhost:3000 }]
+components:
+  securitySchemes:
+    cookie: { type: apiKey, in: cookie, name: phx_session }
+    bearer: { type: http, scheme: bearer }
+    ingestKey: { type: apiKey, in: header, name: x-api-key }
+  schemas:
+    Error: { type: object, properties: { error: { type: string } } }
+    Event:
+      type: object
+      required: [source, type]
+      properties:
+        source: { type: string, enum: [authentication, application, system, network, api, file, cloud] }
+        type: { type: string, example: login_failed }
+        ts: { type: string, format: date-time }
+        user: { type: string }
+        ip: { type: string }
+        host: { type: string }
+        geo: { type: object, properties: { country: { type: string }, city: { type: string } } }
+        outcome: { type: string }
+        details: { type: object }
+    IngestResult: { type: object, properties: { accepted: { type: integer }, duplicates: { type: integer }, rejected: { type: array, items: { type: object } } } }
+security: [{ cookie: [] }, { bearer: [] }]
+paths:
+  /healthz: { get: { security: [], summary: Liveness, responses: { "200": { description: ok } } } }
+  /readyz: { get: { security: [], summary: Readiness (DB + audit chain), responses: { "200": { description: ready }, "503": { description: not ready } } } }
+  /metrics: { get: { summary: Prometheus metrics, responses: { "200": { description: text } } } }
+  /api/auth/status: { get: { security: [], summary: Mode and first-run state, responses: { "200": { description: ok } } } }
+  /api/auth/setup: { post: { security: [], summary: Create the first administrator, responses: { "200": { description: ok }, "400": { description: invalid }, "409": { description: already set up } } } }
+  /api/auth/login:
+    post:
+      security: []
+      summary: Sign in
+      requestBody: { content: { application/json: { schema: { type: object, required: [username, password], properties: { username: { type: string }, password: { type: string }, totp: { type: string } } } } } }
+      responses: { "200": { description: "user, role, csrf, token (+Set-Cookie)" }, "401": { description: invalid / totpRequired }, "429": { description: locked out } }
+  /api/auth/logout: { post: { summary: Sign out, responses: { "200": { description: ok } } } }
+  /api/auth/me: { get: { summary: Current session, responses: { "200": { description: ok } } } }
+  /api/state: { get: { summary: Dashboard snapshot (viewer), responses: { "200": { description: ok } } } }
+  /api/incidents/{id}:
+    get: { summary: Incident detail (viewer), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: ok }, "404": { description: not found } } }
+  /api/incidents/{id}/resume: { post: { summary: Resume an interrupted incident (admin), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: ok } } } }
+  /api/actions/{id}/approve: { post: { summary: Approve a containment action (admin), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: ok } } } }
+  /api/actions/{id}/reject: { post: { summary: Reject a containment action (admin), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: ok } } } }
+  /api/users: { get: { summary: List users (admin), responses: { "200": { description: ok } } }, post: { summary: Create user (admin), responses: { "201": { description: created }, "400": { description: policy } } } }
+  /api/keys: { get: { summary: List ingest keys (admin), responses: { "200": { description: ok } } }, post: { summary: Create ingest key; plaintext shown once (admin), responses: { "201": { description: created } } } }
+  /api/suppressions: { get: { summary: List, responses: { "200": { description: ok } } }, post: { summary: Add (admin; reason required), responses: { "201": { description: created } } } }
+  /api/assets/{kind}/{name}: { post: { summary: Upsert host|user|resource (admin), parameters: [{ name: kind, in: path, required: true, schema: { type: string } }, { name: name, in: path, required: true, schema: { type: string } }], responses: { "200": { description: ok } } } }
+  /api/assets/backups: { post: { summary: Record a backup (admin), responses: { "201": { description: created } } } }
+  /api/admin/backup: { post: { summary: Online DB backup (admin), responses: { "200": { description: file } } } }
+  /api/ingest:
+    post:
+      security: [{ ingestKey: [] }, { cookie: [] }]
+      summary: Ingest events in the key's format (generic = PHOENIX schema)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { events: { type: array, items: { $ref: "#/components/schemas/Event" } } } } } } }
+      responses: { "200": { description: ok, content: { application/json: { schema: { $ref: "#/components/schemas/IngestResult" } } } }, "401": { description: bad key }, "429": { description: rate limited } }
+  /api/ingest/{format}:
+    post:
+      security: [{ ingestKey: [] }, { cookie: [] }]
+      summary: Ingest vendor logs (generic|okta|entra|cloudtrail|windows|syslog|cef)
+      parameters: [{ name: format, in: path, required: true, schema: { type: string, enum: [generic, okta, entra, cloudtrail, windows, syslog, cef, vercel, vercel-webhook, render, render-webhook, heroku, netlify, railway, cloudflare, github, nginx] } }]
+      responses: { "200": { description: ok, content: { application/json: { schema: { $ref: "#/components/schemas/IngestResult" } } } }, "403": { description: key bound to another format } }
+  /api/hook/{key}:
+    post:
+      security: []
+      summary: Ingest using the key in the URL (Vercel, Netlify, GitHub, Cloudflare, Railway, Render webhooks and drains). Format = the key's format.
+      parameters: [{ name: key, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: ok, content: { application/json: { schema: { $ref: "#/components/schemas/IngestResult" } } } }, "401": { description: bad key or bad signature } }
+    get:
+      security: []
+      summary: Reachability check; answers the Vercel x-vercel-verify handshake
+      parameters: [{ name: key, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: reachable }, "401": { description: bad key } }
+  /api/platforms: { get: { summary: Connection wizard catalog (admin), responses: { "200": { description: ok } } } }
+  /api/keys/{id}/test: { post: { summary: Send a test event for a connection (admin), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: ok } } } }
+  /api/autonomy: { get: { summary: Autonomy mode, budget and protected entities, responses: { "200": { description: ok } } }, post: { summary: Set mode (admin), responses: { "200": { description: ok } } } }
+  /api/containments: { get: { summary: Active undoable blocks, responses: { "200": { description: ok } } } }
+  /api/actions/{id}/undo: { post: { summary: Unblock an action (analyst; trust=admin), parameters: [{ name: id, in: path, required: true, schema: { type: string } }], responses: { "200": { description: ok } } } }
+  /api/collectors: { get: { summary: List pull collectors (admin), responses: { "200": { description: ok } } }, post: { summary: Add a pull collector (admin), responses: { "201": { description: created } } } }

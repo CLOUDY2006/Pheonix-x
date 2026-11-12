@@ -1,0 +1,25 @@
+# docker compose up -d            -> PHOENIX on http://localhost:3000 (put TLS in front for anything but localhost)
+# docker compose --profile tls up -d  -> adds Caddy with automatic HTTPS (set PHOENIX_DOMAIN in .env)
+services:
+  phoenix:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PHOENIX_MODE: ${PHOENIX_MODE:-production}
+      PHOENIX_TRUST_PROXY: ${PHOENIX_TRUST_PROXY:-on}
+    volumes: ["phoenix-data:/data"]
+    ports: ["127.0.0.1:3000:3000"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]   # entrypoint fixes volume ownership then drops to the unprivileged user
+  caddy:
+    profiles: ["tls"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment: { PHOENIX_DOMAIN: "${PHOENIX_DOMAIN:-localhost}" }
+    volumes: ["./deploy/Caddyfile:/etc/caddy/Caddyfile:ro", "caddy-data:/data"]
+    depends_on: [phoenix]
+volumes: { phoenix-data: {}, caddy-data: {} }

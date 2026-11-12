@@ -1,0 +1,22 @@
+# sudo cp deploy/phoenix-x.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now phoenix-x
+[Unit]
+Description=PHOENIX X autonomous SOC
+After=network.target
+
+[Service]
+Type=simple
+User=phoenix
+WorkingDirectory=/opt/phoenix-x
+EnvironmentFile=/opt/phoenix-x/.env
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/index.js
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/phoenix-x/data
+
+[Install]
+WantedBy=multi-user.target

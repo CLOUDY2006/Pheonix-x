@@ -1,0 +1,11 @@
+node_modules/
+.env
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+tests/
+docs/
+.github/
+*.md

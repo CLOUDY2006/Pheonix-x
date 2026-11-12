@@ -1,0 +1,4 @@
+{$PHOENIX_DOMAIN:localhost} {
+	encode gzip
+	reverse_proxy phoenix:3000
+}

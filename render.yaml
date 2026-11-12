@@ -1,0 +1,18 @@
+# Render Blueprint: Dashboard -> New -> Blueprint -> pick this repo. Persistent disks need a paid instance type (not the free tier).
+services:
+  - type: web
+    name: phoenix-x
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: phoenix-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - { key: PHOENIX_MODE, value: production }
+      - { key: PHOENIX_TRUST_PROXY, value: "on" }
+      - { key: PHOENIX_SETUP_TOKEN, generateValue: true }   # shown in the Render dashboard; needed once, to create the admin
+      - { key: PHOENIX_REQUIRE_ADMIN_TOTP, value: "on" }
+      - { key: PHOENIX_BACKUP_EVERY_HOURS, value: "6" }

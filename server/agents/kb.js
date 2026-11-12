@@ -1,0 +1,19 @@
+'use strict';
+// Security Knowledge Base with lightweight RAG: TF-IDF retrieval over policies & IR playbooks (fully local, no API needed).
+const DOCS = [
+  { id: 'PB-001', title: 'Playbook: Credential Compromise', text: 'Credential compromise brute force password spraying valid accounts. Steps: verify login with user out-of-band, revoke all sessions and tokens, suspend account if unverified, reset password and re-enrol MFA, block attacking IP, review mailbox rules and OAuth grants, check other accounts from same source IP. Enforce MFA for all users.' },
+  { id: 'PB-002', title: 'Playbook: Ransomware', text: 'Ransomware encryption shadow copy deletion mass file rename. Steps: isolate affected endpoint immediately, do not power off before forensic capture, block command and control IPs, verify backups are immutable and untouched, identify patient zero, restore from verified backup in isolation, rebuild when no backup exists, rotate credentials used on host, notify leadership and legal.' },
+  { id: 'PB-003', title: 'Playbook: Insider Threat / Data Exfiltration', text: 'Insider threat bulk download off-hours data exfiltration collection. Steps: engage HR and legal before action, preserve evidence, restrict access to sensitive resources, suspend account with approval, review egress logs and DLP, determine data classification and notification obligations.' },
+  { id: 'PB-004', title: 'Playbook: Phishing', text: 'Phishing spearphishing link lookalike domain user reported email. Steps: never open the URL on analyst workstations, extract domains and check threat intelligence, search mail logs for other recipients, identify users who clicked, reset credentials of clickers, block domain at proxy and DNS, purge messages, send awareness notice.' },
+  { id: 'PB-005', title: 'Playbook: Cloud Account Compromise', text: 'Cloud account compromise IAM administrator policy access key audit logging disabled public bucket. Steps: detach unauthorized policies, rotate access keys, make exposed buckets private, preserve CloudTrail logs, restoring audit logging is a security-control change requiring authorized human approval, review all actions of the principal.' },
+  { id: 'POL-010', title: 'Policy: Automated Response Authorization', text: 'Automated response authorization tiers. Automatic only for low-risk reversible actions in sandbox. Account suspension, host isolation, production changes require human approval. Destructive operations, data deletion, shutdown of critical infrastructure, and security control modification are restricted and never automated.' },
+  { id: 'POL-011', title: 'Policy: Evidence Handling', text: 'Evidence handling preservation chain of custody. Snapshot logs and system state before remediation, hash evidence, maintain immutable audit trail, never wipe systems before forensic capture.' },
+  { id: 'POL-012', title: 'Policy: Backup and Recovery', text: 'Backup recovery policy. Backups must be verified and immutable, restore only from backups that predate compromise, restore in isolated network, verify integrity after restore, systems without backups require rebuild plan.' },
+];
+const tok = (s) => s.toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+const df = {}; const idx = DOCS.map((d) => { const t = tok(d.title + ' ' + d.text), tf = {}; t.forEach((w) => (tf[w] = (tf[w] || 0) + 1)); Object.keys(tf).forEach((w) => (df[w] = (df[w] || 0) + 1)); return { d, tf, n: t.length }; });
+function search(q, k = 3) {
+  const qs = tok(q);
+  return idx.map(({ d, tf, n }) => ({ id: d.id, title: d.title, text: d.text, score: qs.reduce((s, w) => s + ((tf[w] || 0) / n) * Math.log(1 + DOCS.length / (df[w] || DOCS.length)), 0) })).filter((r) => r.score > 0).sort((a, b) => b.score - a.score).slice(0, k).map((r) => ({ ...r, score: +r.score.toFixed(4) }));
+}
+module.exports = { search, DOCS };
